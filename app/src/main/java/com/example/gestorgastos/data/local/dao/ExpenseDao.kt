@@ -74,4 +74,28 @@ interface ExpenseDao {
         ORDER BY totalMinor DESC
     """)
     suspend fun totalsByCategory(fromDay: Int, toDay: Int): List<CategoryTotal>
+
+    @Query("""
+    SELECT dateEpochDay, currency, SUM(amountMinor) as totalMinor
+    FROM expenses
+    WHERE dateEpochDay BETWEEN :fromDay AND :toDay
+      AND currency = :currency
+    GROUP BY dateEpochDay, currency
+    ORDER BY dateEpochDay ASC
+""")
+    suspend fun dailyTotalsForCurrency(fromDay: Int, toDay: Int, currency: String): List<DailyTotal>
+
+    @Query("""
+    SELECT e.categoryId as categoryId, c.name as categoryName, e.currency as currency,
+           SUM(e.amountMinor) as totalMinor
+    FROM expenses e
+    LEFT JOIN categories c ON c.id = e.categoryId
+    WHERE e.dateEpochDay BETWEEN :fromDay AND :toDay
+      AND e.currency = :currency
+    GROUP BY e.categoryId, c.name, e.currency
+    ORDER BY totalMinor DESC
+""")
+    suspend fun totalsByCategoryForCurrency(fromDay: Int, toDay: Int, currency: String): List<CategoryTotal>
+
+
 }

@@ -41,6 +41,7 @@ private object Routes {
     const val MANAGE_PIN = "manage_pin"
     const val CATEGORIES = "categories"
     const val EDIT = "edit"
+    const val REPORTS = "reports"
 }
 
 @Composable
@@ -107,6 +108,22 @@ fun AppNav() {
                     }
                 )
             }
+        }
+        // ---------------- REPORTES ----------------
+        composable(Routes.REPORTS) {
+            val vm: com.example.gestorgastos.ui.reports.ReportsViewModel =
+                viewModel(factory = com.example.gestorgastos.ui.ReportsVMFactory(container.expenseRepository))
+
+            val state by vm.state.collectAsStateWithLifecycle()
+            LaunchedEffect(Unit) { vm.load() }
+
+            com.example.gestorgastos.ui.reports.ReportsScreen(
+                state = state,
+                onBack = { navController.popBackStack() },
+                onPrevMonth = vm::prevMonth,
+                onNextMonth = vm::nextMonth,
+                onCurrency = vm::setCurrency
+            )
         }
 
         // ---------------- MANAGE PIN ----------------
@@ -190,6 +207,7 @@ fun AppNav() {
                 onInsertDemo = vm::insertDemo,
                 onCategories = { navController.navigate(Routes.CATEGORIES) },
                 onAdd = { navController.navigate(Routes.ADD) },
+                onReports = { navController.navigate(Routes.REPORTS) },
                 onExportCsv = {
                     scope.launch {
                         val csv = buildCsvFromRows(state.rows)

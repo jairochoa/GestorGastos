@@ -19,4 +19,9 @@ class ExpenseRepository(
 
     suspend fun update(expense: ExpenseEntity) = expenseDao.update(expense)
 
+    suspend fun dailyTotalsForCurrency(fromDay: Int, toDay: Int, currency: String) =
+        expenseDao.dailyTotalsForCurrency(fromDay, toDay, currency)
+
+    suspend fun totalsByCategoryForCurrency(fromDay: Int, toDay: Int, currency: String) =
+        expenseDao.totalsByCategoryForCurrency(fromDay, toDay, currency)
 }

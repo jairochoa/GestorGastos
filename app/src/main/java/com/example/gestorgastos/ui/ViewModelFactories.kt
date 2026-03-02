@@ -7,6 +7,8 @@ import com.example.gestorgastos.data.repository.ExpenseRepository
 import com.example.gestorgastos.ui.add.AddExpenseViewModel
 import com.example.gestorgastos.ui.list.ExpensesListViewModel
 import com.example.gestorgastos.ui.edit.EditExpenseViewModel
+import com.example.gestorgastos.ui.reports.ReportsViewModel
+
 
 
 class ExpensesListVMFactory(
@@ -53,6 +55,20 @@ class EditExpenseVMFactory(
         if (modelClass.isAssignableFrom(EditExpenseViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return EditExpenseViewModel(expenseRepo) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+
+
+class ReportsVMFactory(
+    private val expenseRepo: ExpenseRepository
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(ReportsViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return ReportsViewModel(expenseRepo) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
