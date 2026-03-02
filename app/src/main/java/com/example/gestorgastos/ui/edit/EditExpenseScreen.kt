@@ -17,6 +17,14 @@ import com.example.gestorgastos.data.local.entity.ExpenseEntity
 import com.example.gestorgastos.data.local.model.CurrencyCode
 import com.example.gestorgastos.data.local.model.PaymentMethod
 import com.example.gestorgastos.media.createReceiptImageUri
+import com.example.gestorgastos.media.copyReceiptToInternal
+import com.example.gestorgastos.media.openReceiptImage
+import com.example.gestorgastos.ui.receipt.ReceiptThumbnail
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 
 @Composable
 fun EditExpenseScreen(
@@ -37,6 +45,7 @@ fun EditExpenseScreen(
     onDelete: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // inicializar campos desde expense
     var amount by remember { mutableStateOf("") } // lo prellenamos abajo
@@ -64,7 +73,11 @@ fun EditExpenseScreen(
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        if (uri != null) receipt = uri
+        if (uri != null) {
+            scope.launch {
+                receipt = copyReceiptToInternal(context, uri)
+            }
+        }
     }
 
     val takePicture = rememberLauncherForActivityResult(
@@ -80,22 +93,61 @@ fun EditExpenseScreen(
             TopAppBar(
                 title = { Text("Editar gasto") },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Volver") } },
-                actions = {
-                    TextButton(onClick = { showDeleteConfirm = true }) { Text("Borrar") }
-                }
+                actions = { TextButton(onClick = { showDeleteConfirm = true }) { Text("Borrar") } }
             )
+        },
+        bottomBar = {
+            Surface(shadowElevation = 6.dp) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                        .navigationBarsPadding()
+                ) {
+                    Button(
+                        onClick = {
+                            onSave(
+                                amount, currency, concept,
+                                merchant.ifBlank { null },
+                                address.ifBlank { null },
+                                description.ifBlank { null },
+                                method,
+                                receipt?.toString(),
+                                selectedCategoryId
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Guardar cambios") }
+                }
+            }
         }
     ) { padding ->
+        val scrollState = rememberScrollState()
+
         Column(
-            Modifier.padding(padding).padding(12.dp),
+            Modifier
+                .padding(padding)
+                .padding(12.dp)
+                .verticalScroll(scrollState)
+                .imePadding(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Monto") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = concept, onValueChange = { concept = it }, label = { Text("Concepto") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { amount = it },
+                label = { Text("Monto") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = concept,
+                onValueChange = { concept = it },
+                label = { Text("Concepto") },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DropdownEnum("Moneda", CurrencyCode.values().toList(), currency) { currency = it }
-                DropdownEnum("Método", PaymentMethod.values().toList(), method) { method = it }
+                DropdownEnum("Moneda", CurrencyCode.entries.toList(), currency) { currency = it }
+                DropdownEnum("Método", PaymentMethod.entries.toList(), method) { method = it }
             }
 
             // Categoría
@@ -123,40 +175,59 @@ fun EditExpenseScreen(
             OutlinedTextField(value = address, onValueChange = { address = it }, label = { Text("Dirección") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Descripción") }, modifier = Modifier.fillMaxWidth())
 
-            // Recibo: cámara + picker + quitar
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = {
-                    val uri = createReceiptImageUri(context)
-                    pendingCameraUri = uri
-                    takePicture.launch(uri)
-                }) { Text("Tomar foto") }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
 
-                OutlinedButton(onClick = {
-                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }) { Text("Elegir foto") }
+                // Fila 1: capturar / elegir
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val uri = createReceiptImageUri(context)
+                            pendingCameraUri = uri
+                            takePicture.launch(uri)
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Tomar foto") }
 
-                OutlinedButton(
-                    onClick = { receipt = null },
-                    enabled = receipt != null
-                ) { Text("Quitar") }
+                    OutlinedButton(
+                        onClick = {
+                            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Elegir foto") }
+                }
 
-                if (receipt != null) Text("✔ Recibo")
+                // Fila 2: acciones sobre el recibo actual
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { receipt = null },
+                        enabled = receipt != null,
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Quitar") }
+
+                    OutlinedButton(
+                        onClick = { receipt?.let { openReceiptImage(context, it) } },
+                        enabled = receipt != null,
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Abrir") }
+                }
             }
 
-            Button(
-                onClick = {
-                    onSave(
-                        amount, currency, concept,
-                        merchant.ifBlank { null },
-                        address.ifBlank { null },
-                        description.ifBlank { null },
-                        method,
-                        receipt?.toString(),
-                        selectedCategoryId
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Guardar cambios") }
+            // Si quieres thumbnail también aquí (recomendado), agrega esto:
+            receipt?.let { uri ->
+                ReceiptThumbnail(
+                    uri = uri,
+                    onClick = { openReceiptImage(context, uri) }
+                )
+            }
+
+            // Espacio extra para que el contenido final no quede tapado por el bottomBar
+            Spacer(Modifier.height(90.dp))
         }
     }
 

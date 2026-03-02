@@ -15,6 +15,16 @@ import com.example.gestorgastos.data.local.model.PaymentMethod
 import androidx.compose.ui.platform.LocalContext
 import com.example.gestorgastos.media.createReceiptImageUri
 import com.example.gestorgastos.data.local.entity.CategoryEntity
+import com.example.gestorgastos.media.copyReceiptToInternal
+import com.example.gestorgastos.media.openReceiptImage
+import com.example.gestorgastos.ui.receipt.ReceiptThumbnail
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+
+
 
 @Composable
 fun AddExpenseScreen(
@@ -49,6 +59,7 @@ fun AddExpenseScreen(
     var method by remember { mutableStateOf(PaymentMethod.CASH) }
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var receipt: Uri? by remember { mutableStateOf(null) }
     var pendingCameraUri: Uri? by remember { mutableStateOf(null) }
@@ -57,7 +68,12 @@ fun AddExpenseScreen(
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        receipt = uri
+        if (uri != null) {
+            scope.launch {
+                // Copiar a interno para tener un Uri estable
+                receipt = copyReceiptToInternal(context, uri)
+            }
+        }
     }
 
 // Cámara (toma foto y guarda en el URI que le damos)
@@ -76,14 +92,45 @@ fun AddExpenseScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Nuevo gasto") },
-                navigationIcon = {
-                    TextButton(onClick = onBack) { Text("Volver") }
-                }
+                navigationIcon = { TextButton(onClick = onBack) { Text("Volver") } }
             )
+        },
+        bottomBar = {
+            Surface(shadowElevation = 6.dp) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                        .navigationBarsPadding()
+                ) {
+                    Button(
+                        onClick = {
+                            onSave(
+                                amount, currency, concept,
+                                merchant.ifBlank { null },
+                                address.ifBlank { null },
+                                description.ifBlank { null },
+                                method,
+                                receipt?.toString(),
+                                selectedCategoryId
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Guardar") }
+                }
+            }
         }
     ) { padding ->
-        Column(Modifier.padding(padding).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        val scrollState = rememberScrollState()
 
+        Column(
+            Modifier
+                .padding(padding)
+                .padding(12.dp)
+                .verticalScroll(scrollState)
+                .imePadding(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Monto") })
             OutlinedTextField(value = concept, onValueChange = { concept = it }, label = { Text("Concepto") })
 
@@ -96,25 +143,54 @@ fun AddExpenseScreen(
             OutlinedTextField(value = address, onValueChange = { address = it }, label = { Text("Dirección") })
             OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Descripción") })
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
 
-                OutlinedButton(onClick = {
-                    // 1) Crear un URI para que la cámara guarde ahí
-                    val uri = createReceiptImageUri(context)
-                    pendingCameraUri = uri
-                    // 2) Lanzar cámara
-                    takePicture.launch(uri)
-                }) {
-                    Text("Tomar foto")
+                // Fila 1: capturar / elegir
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val uri = createReceiptImageUri(context)
+                            pendingCameraUri = uri
+                            takePicture.launch(uri)
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Tomar foto") }
+
+                    OutlinedButton(
+                        onClick = {
+                            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Elegir foto") }
                 }
 
-                OutlinedButton(onClick = {
-                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }) {
-                    Text("Elegir foto")
-                }
+                // Fila 2: acciones sobre el recibo actual
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { receipt = null },
+                        enabled = receipt != null,
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Quitar") }
 
-                if (receipt != null) Text("✔ Recibo")
+                    OutlinedButton(
+                        onClick = { receipt?.let { openReceiptImage(context, it) } },
+                        enabled = receipt != null,
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Abrir") }
+                }
+            }
+
+            receipt?.let { uri ->
+                ReceiptThumbnail(
+                    uri = uri,
+                    onClick = { openReceiptImage(context, uri) }
+                )
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -136,26 +212,11 @@ fun AddExpenseScreen(
                     }
                 }
 
-                OutlinedButton(onClick = onManageCategories) {
-                    Text("Gestionar")
-                }
+                OutlinedButton(onClick = onManageCategories) { Text("Gestionar") }
             }
 
-
-            Button(
-                onClick = {
-                    onSave(
-                        amount, currency, concept,
-                        merchant.ifBlank { null },
-                        address.ifBlank { null },
-                        description.ifBlank { null },
-                        method,
-                        receipt?.toString(),
-                        selectedCategoryId
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Guardar") }
+            // Espacio extra para que el contenido final no quede tapado por el bottomBar
+            Spacer(Modifier.height(90.dp))
         }
     }
 }

@@ -23,7 +23,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import com.example.gestorgastos.media.openReceiptImage
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 
 @Composable
 fun ExpensesListScreen(
@@ -38,6 +44,7 @@ fun ExpensesListScreen(
     onOpenExpense: (Long) -> Unit,
     onReports: () -> Unit
 ) {
+    val context = LocalContext.current
     var query by rememberSaveable { mutableStateOf("") }
     var filterCurrency by rememberSaveable { mutableStateOf<String?>(null) }   // "USD" / "COP" / "VES"
     var filterCategory by rememberSaveable { mutableStateOf<String?>(null) }   // nombre categoría o null
@@ -151,10 +158,16 @@ fun ExpensesListScreen(
                 items(visibleRows, key = { it.expense.id }) { row ->
                     val e = row.expense
                     val currency = runCatching { CurrencyCode.valueOf(e.currency) }.getOrNull()
+                    val receiptUri = row.expense.receiptUri
                     Card(modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onOpenExpense(row.expense.id) }) {
                         Column(Modifier.padding(12.dp)) {
+                            if (!receiptUri.isNullOrBlank()) {
+                                TextButton(onClick = { openReceiptImage(context, Uri.parse(receiptUri)) }) {
+                                    Text("Recibo")
+                                }
+                            }
                             Text(e.concept, style = MaterialTheme.typography.titleMedium)
                             Text("Categoría: ${row.categoryName ?: "—"}")
                             Text("Método: ${e.paymentMethod}  •  Fecha: ${formatEpochDay(e.dateEpochDay)}")
