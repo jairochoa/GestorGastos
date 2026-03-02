@@ -13,6 +13,15 @@ import com.example.gestorgastos.ui.formatMinor
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.gestorgastos.ui.formatEpochDay
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.input.KeyboardType
+import com.example.gestorgastos.data.local.dao.ExpenseListRow
+import com.example.gestorgastos.ui.amountMinorToDecimalString
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+
 
 @Composable
 fun ExpensesListScreen(
@@ -27,6 +36,14 @@ fun ExpensesListScreen(
     onOpenExpense: (Long) -> Unit,
     onReports: () -> Unit
 ) {
+    var query by rememberSaveable { mutableStateOf("") }
+
+    val q = query.trim()
+    val visibleRows = if (q.isBlank()) {
+        state.rows
+    } else {
+        state.rows.filter { matchesExpenseQuery(it, q) }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -51,6 +68,25 @@ fun ExpensesListScreen(
     ) { padding ->
         Column(Modifier.padding(padding).padding(12.dp)) {
 
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("Buscar (concepto, comercio o monto)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                trailingIcon = {
+                    if (query.isNotBlank()) {
+                        TextButton(onClick = { query = "" }) { Text("Limpiar") }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Text(
+                text = "Mostrando ${visibleRows.size} de ${state.rows.size}",
+                style = MaterialTheme.typography.labelMedium
+            )
+
             // Botón útil para probar el flujo en vivo
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 OutlinedButton(onClick = onInsertDemo) { Text("Insertar demo") }
@@ -59,7 +95,7 @@ fun ExpensesListScreen(
             Spacer(Modifier.height(8.dp))
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.rows, key = { it.expense.id }) { row ->
+                items(visibleRows, key = { it.expense.id }) { row ->
                     val e = row.expense
                     val currency = runCatching { CurrencyCode.valueOf(e.currency) }.getOrNull()
                     Card(modifier = Modifier
@@ -83,4 +119,36 @@ fun ExpensesListScreen(
             }
         }
     }
+}
+
+private fun matchesExpenseQuery(row: ExpenseListRow, rawQuery: String): Boolean {
+    val q = rawQuery.trim().lowercase()
+    if (q.isBlank()) return true
+
+    val e = row.expense
+
+    val concept = e.concept.lowercase()
+    val merchant = (e.merchant ?: "").lowercase()
+    val category = (row.categoryName ?: "").lowercase()
+    val description = (e.description ?: "").lowercase()
+
+
+    // Coincidencia por texto
+    if (concept.contains(q) || merchant.contains(q) || category.contains(q) || description.contains(q)) return true
+
+    // Coincidencia por monto (busca en amountMinor y en formato decimal)
+    val qNum = q.replace(",", ".")
+        .filter { it.isDigit() || it == '.' }
+
+    if (qNum.isNotBlank()) {
+        // 1) Buscar en amountMinor directo (ej: 1200)
+        if (e.amountMinor.toString().contains(qNum.filter { it.isDigit() })) return true
+
+        // 2) Buscar en decimal (ej: 12.00)
+        val decimals = runCatching { CurrencyCode.valueOf(e.currency).decimals }.getOrElse { 2 }
+        val formatted = amountMinorToDecimalString(e.amountMinor, decimals) // "12.00"
+        if (formatted.contains(qNum)) return true
+    }
+
+    return false
 }
