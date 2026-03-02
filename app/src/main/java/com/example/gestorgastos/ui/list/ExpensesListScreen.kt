@@ -12,6 +12,7 @@ import com.example.gestorgastos.data.local.model.CurrencyCode
 import com.example.gestorgastos.ui.formatMinor
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.gestorgastos.ui.formatEpochDay
+import androidx.compose.foundation.clickable
 
 @Composable
 fun ExpensesListScreen(
@@ -23,6 +24,7 @@ fun ExpensesListScreen(
     onExportCsv: () -> Unit,
     onSetupPin: () -> Unit,
     onCategories: () -> Unit,
+    onOpenExpense: (Long) -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -58,7 +60,9 @@ fun ExpensesListScreen(
                 items(state.rows, key = { it.expense.id }) { row ->
                     val e = row.expense
                     val currency = runCatching { CurrencyCode.valueOf(e.currency) }.getOrNull()
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenExpense(row.expense.id) }) {
                         Column(Modifier.padding(12.dp)) {
                             Text(e.concept, style = MaterialTheme.typography.titleMedium)
                             Text("Categoría: ${row.categoryName ?: "—"}")

@@ -1,17 +1,15 @@
 package com.example.gestorgastos.data.local.dao
 
 import androidx.room.*
-import com.example.gestorgastos.data.local.entity.ExpenseEntity
-import kotlinx.coroutines.flow.Flow
 import androidx.room.ColumnInfo
 import androidx.room.Embedded
-
+import com.example.gestorgastos.data.local.entity.ExpenseEntity
+import kotlinx.coroutines.flow.Flow
 
 data class ExpenseListRow(
     @Embedded val expense: ExpenseEntity,
     @ColumnInfo(name = "categoryName") val categoryName: String?
 )
-
 
 data class DailyTotal(
     val dateEpochDay: Int,
@@ -35,6 +33,18 @@ interface ExpenseDao {
         ORDER BY dateEpochDay DESC, id DESC
     """)
     fun observeForRange(fromDay: Int, toDay: Int): Flow<List<ExpenseEntity>>
+
+    @Query("""
+        SELECT e.*, c.name AS categoryName
+        FROM expenses e
+        LEFT JOIN categories c ON c.id = e.categoryId
+        WHERE e.dateEpochDay BETWEEN :fromDay AND :toDay
+        ORDER BY e.dateEpochDay DESC, e.id DESC
+    """)
+    fun observeListRows(fromDay: Int, toDay: Int): Flow<List<ExpenseListRow>>
+
+    @Query("SELECT * FROM expenses WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): ExpenseEntity?
 
     @Insert
     suspend fun insert(expense: ExpenseEntity): Long
@@ -64,13 +74,4 @@ interface ExpenseDao {
         ORDER BY totalMinor DESC
     """)
     suspend fun totalsByCategory(fromDay: Int, toDay: Int): List<CategoryTotal>
-
-    @Query("""
-    SELECT e.*, c.name AS categoryName
-    FROM expenses e
-    LEFT JOIN categories c ON c.id = e.categoryId
-    WHERE e.dateEpochDay BETWEEN :fromDay AND :toDay
-    ORDER BY e.dateEpochDay DESC, e.id DESC
-""")
-    fun observeListRows(fromDay: Int, toDay: Int): kotlinx.coroutines.flow.Flow<List<ExpenseListRow>>
 }

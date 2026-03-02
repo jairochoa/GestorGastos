@@ -8,26 +8,30 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.gestorgastos.GastosApp
-import com.example.gestorgastos.security.SecurityManager
-import com.example.gestorgastos.ui.*
+import com.example.gestorgastos.data.local.model.CurrencyCode
+import com.example.gestorgastos.ui.AddExpenseVMFactory
+import com.example.gestorgastos.ui.CategoriesVMFactory
+import com.example.gestorgastos.ui.EditExpenseVMFactory
+import com.example.gestorgastos.ui.ExpensesListVMFactory
 import com.example.gestorgastos.ui.add.AddExpenseScreen
 import com.example.gestorgastos.ui.add.AddExpenseViewModel
+import com.example.gestorgastos.ui.amountMinorToDecimalString
+import com.example.gestorgastos.ui.categories.CategoriesScreen
+import com.example.gestorgastos.ui.categories.CategoriesViewModel
+import com.example.gestorgastos.ui.edit.EditExpenseScreen
+import com.example.gestorgastos.ui.edit.EditExpenseViewModel
+import com.example.gestorgastos.ui.formatEpochDay
 import com.example.gestorgastos.ui.list.ExpensesListScreen
 import com.example.gestorgastos.ui.list.ExpensesListViewModel
 import com.example.gestorgastos.ui.lock.LockScreen
+import com.example.gestorgastos.ui.lock.ManagePinScreen
 import com.example.gestorgastos.ui.lock.SetupPinScreen
 import kotlinx.coroutines.launch
 import java.nio.charset.StandardCharsets
-import com.example.gestorgastos.ui.formatEpochDay
-import com.example.gestorgastos.data.local.model.CurrencyCode
-import com.example.gestorgastos.ui.amountMinorToDecimalString
-import com.example.gestorgastos.ui.lock.ManagePinScreen
-import com.example.gestorgastos.ui.CategoriesVMFactory
-import com.example.gestorgastos.ui.categories.CategoriesScreen
-import com.example.gestorgastos.ui.categories.CategoriesViewModel
-
 
 private object Routes {
     const val LOCK = "lock"
@@ -36,8 +40,8 @@ private object Routes {
     const val ADD = "add"
     const val MANAGE_PIN = "manage_pin"
     const val CATEGORIES = "categories"
+    const val EDIT = "edit"
 }
-
 
 @Composable
 fun AppNav() {
@@ -53,6 +57,59 @@ fun AppNav() {
 
     NavHost(navController = navController, startDestination = startDest) {
 
+        // ---------------- EDIT ----------------
+        composable("${Routes.EDIT}/{id}") { backStackEntry ->
+            val id = backStackEntry.arguments?.getString("id")?.toLongOrNull()
+            if (id == null) {
+                navController.popBackStack()
+                return@composable
+            }
+
+            val editVm: EditExpenseViewModel =
+                viewModel(factory = EditExpenseVMFactory(container.expenseRepository))
+
+            val catVm: CategoriesViewModel =
+                viewModel(factory = CategoriesVMFactory(container.categoryRepository))
+            val categories by catVm.categories.collectAsStateWithLifecycle()
+
+            val editState by editVm.state.collectAsStateWithLifecycle()
+            LaunchedEffect(id) { editVm.load(id) }
+
+            val expense = editState.expense
+            if (editState.loaded && expense == null) {
+                navController.popBackStack()
+                return@composable
+            }
+
+            if (expense != null) {
+                EditExpenseScreen(
+                    expense = expense,
+                    categories = categories,
+                    onBack = { navController.popBackStack() },
+                    onSave = { amount, currency, concept, merchant, address, desc, method, receiptUri, categoryId ->
+                        val ok = editVm.save(
+                            original = expense,
+                            amountText = amount,
+                            currency = currency,
+                            concept = concept,
+                            merchant = merchant,
+                            address = address,
+                            description = desc,
+                            paymentMethod = method,
+                            receiptUri = receiptUri,
+                            categoryId = categoryId
+                        )
+                        if (ok) navController.popBackStack()
+                    },
+                    onDelete = {
+                        editVm.delete(expense)
+                        navController.popBackStack()
+                    }
+                )
+            }
+        }
+
+        // ---------------- MANAGE PIN ----------------
         composable(Routes.MANAGE_PIN) {
             ManagePinScreen(
                 security = security,
@@ -67,6 +124,7 @@ fun AppNav() {
             )
         }
 
+        // ---------------- LOCK ----------------
         composable(Routes.LOCK) {
             LockScreen(
                 security = security,
@@ -75,12 +133,11 @@ fun AppNav() {
                         popUpTo(Routes.LOCK) { inclusive = true }
                     }
                 },
-                onSetupPin = {
-                    navController.navigate(Routes.SETUP_PIN)
-                }
+                onSetupPin = { navController.navigate(Routes.SETUP_PIN) }
             )
         }
 
+        // ---------------- SETUP PIN ----------------
         composable(Routes.SETUP_PIN) {
             SetupPinScreen(
                 security = security,
@@ -94,10 +151,10 @@ fun AppNav() {
             )
         }
 
+        // ---------------- CATEGORIES ----------------
         composable(Routes.CATEGORIES) {
             val vm: CategoriesViewModel =
                 viewModel(factory = CategoriesVMFactory(container.categoryRepository))
-
             val categories by vm.categories.collectAsStateWithLifecycle()
 
             CategoriesScreen(
@@ -109,21 +166,20 @@ fun AppNav() {
             )
         }
 
+        // ---------------- LIST ----------------
         composable(Routes.LIST) {
-            val vm: ExpensesListViewModel = viewModel(factory = ExpensesListVMFactory(container.expenseRepository))
+            val vm: ExpensesListViewModel =
+                viewModel(factory = ExpensesListVMFactory(container.expenseRepository))
             val state by vm.uiState.collectAsStateWithLifecycle()
 
             val scope = rememberCoroutineScope()
 
-            // Export CSV usando selector del sistema (Drive incluido)
             var pendingCsv by remember { mutableStateOf<String?>(null) }
             val exportLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.CreateDocument("text/csv")
             ) { uri: Uri? ->
                 val csv = pendingCsv ?: return@rememberLauncherForActivityResult
-                if (uri != null) {
-                    writeText(context.contentResolver, uri, csv)
-                }
+                if (uri != null) writeText(context.contentResolver, uri, csv)
                 pendingCsv = null
             }
 
@@ -136,11 +192,13 @@ fun AppNav() {
                 onAdd = { navController.navigate(Routes.ADD) },
                 onExportCsv = {
                     scope.launch {
-                        // CSV del mes actual (filas que ya ves)
                         val csv = buildCsvFromRows(state.rows)
                         pendingCsv = csv
                         exportLauncher.launch("gastos_${state.month}.csv")
                     }
+                },
+                onOpenExpense = { id ->
+                    navController.navigate("${Routes.EDIT}/$id")
                 },
                 onSetupPin = {
                     if (security.isPinSet()) navController.navigate(Routes.MANAGE_PIN)
@@ -149,17 +207,31 @@ fun AppNav() {
             )
         }
 
+        // ---------------- ADD ----------------
         composable(Routes.ADD) {
-            val vm: AddExpenseViewModel = viewModel(factory = AddExpenseVMFactory(container.expenseRepository))
+            val vm: AddExpenseViewModel =
+                viewModel(factory = AddExpenseVMFactory(container.expenseRepository))
+
             val catVm: CategoriesViewModel =
                 viewModel(factory = CategoriesVMFactory(container.categoryRepository))
             val categories by catVm.categories.collectAsStateWithLifecycle()
+
             AddExpenseScreen(
                 onBack = { navController.popBackStack() },
                 categories = categories,
                 onManageCategories = { navController.navigate(Routes.CATEGORIES) },
                 onSave = { amount, currency, concept, merchant, address, desc, method, receiptUri, categoryId ->
-                    val ok = vm.save(amount, currency, concept, merchant, address, desc, method, receiptUri, categoryId)
+                    val ok = vm.save(
+                        amountText = amount,
+                        currency = currency,
+                        concept = concept,
+                        merchant = merchant,
+                        address = address,
+                        description = desc,
+                        paymentMethod = method,
+                        receiptUri = receiptUri,
+                        categoryId = categoryId
+                    )
                     if (ok) navController.popBackStack()
                 }
             )
@@ -198,7 +270,8 @@ private fun buildCsvFromRows(rows: List<com.example.gestorgastos.data.local.dao.
     for (r in rows) {
         val e = r.expense
         val currency = runCatching { CurrencyCode.valueOf(e.currency) }.getOrNull()
-        val amount = currency?.let { amountMinorToDecimalString(e.amountMinor, it.decimals) } ?: e.amountMinor.toString()
+        val amount = currency?.let { amountMinorToDecimalString(e.amountMinor, it.decimals) }
+            ?: e.amountMinor.toString()
 
         sb.append(csvSafe(formatEpochDay(e.dateEpochDay))).append(CSV_SEP)
             .append(csvSafe(e.currency)).append(CSV_SEP)
@@ -217,8 +290,7 @@ private fun buildCsvFromRows(rows: List<com.example.gestorgastos.data.local.dao.
 }
 
 private fun csvSafe(s: String): String {
-    // Para CSV con separador ;: hay que poner comillas si contiene ;, comillas o saltos de línea
     val needsQuotes = s.contains(CSV_SEP) || s.contains('"') || s.contains('\n') || s.contains('\r')
-    val escaped = s.replace("\"", "\"\"") // CSV: las comillas se duplican
+    val escaped = s.replace("\"", "\"\"")
     return if (needsQuotes) "\"$escaped\"" else escaped
 }

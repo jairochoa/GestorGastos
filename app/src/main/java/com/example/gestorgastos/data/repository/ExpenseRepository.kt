@@ -14,4 +14,9 @@ class ExpenseRepository(
     suspend fun insert(expense: ExpenseEntity): Long = expenseDao.insert(expense)
 
     suspend fun delete(expense: ExpenseEntity) = expenseDao.delete(expense)
+
+    suspend fun getById(id: Long) = expenseDao.getById(id)
+
+    suspend fun update(expense: ExpenseEntity) = expenseDao.update(expense)
+
 }
