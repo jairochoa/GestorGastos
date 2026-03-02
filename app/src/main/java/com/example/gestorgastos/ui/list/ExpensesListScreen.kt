@@ -21,6 +21,8 @@ import com.example.gestorgastos.ui.amountMinorToDecimalString
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 
 
 @Composable
@@ -37,13 +39,44 @@ fun ExpensesListScreen(
     onReports: () -> Unit
 ) {
     var query by rememberSaveable { mutableStateOf("") }
+    var filterCurrency by rememberSaveable { mutableStateOf<String?>(null) }   // "USD" / "COP" / "VES"
+    var filterCategory by rememberSaveable { mutableStateOf<String?>(null) }   // nombre categoría o null
+    var filterMethod by rememberSaveable { mutableStateOf<String?>(null) }     // "CASH" / etc
+
+    val currencyOptions = remember(state.rows) {
+        state.rows.map { it.expense.currency }.distinct().sorted()
+    }
+    val categoryOptions = remember(state.rows) {
+        state.rows.map { it.categoryName ?: "Sin categoría" }.distinct().sorted()
+    }
+    val methodOptions = remember(state.rows) {
+        state.rows.map { it.expense.paymentMethod }.distinct().sorted()
+    }
 
     val q = query.trim()
-    val visibleRows = if (q.isBlank()) {
-        state.rows
-    } else {
-        state.rows.filter { matchesExpenseQuery(it, q) }
-    }
+    val visibleRows = state.rows
+        .asSequence()
+        .filter { row ->
+            // filtro moneda
+            filterCurrency == null || row.expense.currency == filterCurrency
+        }
+        .filter { row ->
+            // filtro categoría (por nombre)
+            if (filterCategory == null) true
+            else {
+                val name = row.categoryName ?: "Sin categoría"
+                name == filterCategory
+            }
+        }
+        .filter { row ->
+            // filtro metodo
+            filterMethod == null || row.expense.paymentMethod == filterMethod
+        }
+        .filter { row ->
+            // búsqueda
+            if (q.isBlank()) true else matchesExpenseQuery(row, q)
+        }
+        .toList()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -93,6 +126,26 @@ fun ExpensesListScreen(
             }
 
             Spacer(Modifier.height(8.dp))
+
+            FiltersRow(
+                currencyOptions = currencyOptions,
+                selectedCurrency = filterCurrency,
+                onCurrency = { filterCurrency = it },
+
+                categoryOptions = categoryOptions,
+                selectedCategory = filterCategory,
+                onCategory = { filterCategory = it },
+
+                methodOptions = methodOptions,
+                selectedMethod = filterMethod,
+                onMethod = { filterMethod = it },
+
+                onReset = {
+                    filterCurrency = null
+                    filterCategory = null
+                    filterMethod = null
+                }
+            )
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(visibleRows, key = { it.expense.id }) { row ->
@@ -151,4 +204,92 @@ private fun matchesExpenseQuery(row: ExpenseListRow, rawQuery: String): Boolean 
     }
 
     return false
+}
+
+@Composable
+private fun FiltersRow(
+    currencyOptions: List<String>,
+    selectedCurrency: String?,
+    onCurrency: (String?) -> Unit,
+
+    categoryOptions: List<String>,
+    selectedCategory: String?,
+    onCategory: (String?) -> Unit,
+
+    methodOptions: List<String>,
+    selectedMethod: String?,
+    onMethod: (String?) -> Unit,
+
+    onReset: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SimpleDropdown(
+                label = "Moneda",
+                options = currencyOptions,
+                selected = selectedCurrency,
+                onSelected = onCurrency,
+                modifier = Modifier.weight(1f)
+            )
+            SimpleDropdown(
+                label = "Categoría",
+                options = categoryOptions,
+                selected = selectedCategory,
+                onSelected = onCategory,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SimpleDropdown(
+                label = "Método",
+                options = methodOptions,
+                selected = selectedMethod,
+                onSelected = onMethod,
+                modifier = Modifier.weight(1f)
+            )
+
+            OutlinedButton(onClick = onReset) { Text("Reset") }
+        }
+    }
+}
+
+@Composable
+private fun SimpleDropdown(
+    label: String,
+    options: List<String>,
+    selected: String?,
+    onSelected: (String?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(selected ?: "Todos", maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Todos") },
+                onClick = { expanded = false; onSelected(null) }
+            )
+            options.forEach { opt ->
+                DropdownMenuItem(
+                    text = { Text(opt) },
+                    onClick = { expanded = false; onSelected(opt) }
+                )
+            }
+        }
+    }
 }
