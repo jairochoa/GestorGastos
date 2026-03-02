@@ -1,0 +1,31 @@
+package com.example.gestorgastos.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import com.example.gestorgastos.data.repository.ExpenseRepository
+import com.example.gestorgastos.ui.add.AddExpenseViewModel
+import com.example.gestorgastos.ui.list.ExpensesListViewModel
+
+class ExpensesListVMFactory(
+    private val expenseRepo: ExpenseRepository
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(ExpensesListViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return ExpensesListViewModel(expenseRepo) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+class AddExpenseVMFactory(
+    private val expenseRepo: ExpenseRepository
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(AddExpenseViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return AddExpenseViewModel(expenseRepo) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
