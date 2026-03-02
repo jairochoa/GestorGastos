@@ -23,7 +23,8 @@ class AddExpenseViewModel(
         address: String?,
         description: String?,
         paymentMethod: PaymentMethod,
-        receiptUri: String?
+        receiptUri: String?,
+        categoryId: Long?
     ): Boolean {
         val amountMinor = parseAmountToMinor(amountText, currency) ?: return false
         if (concept.isBlank()) return false
@@ -37,7 +38,7 @@ class AddExpenseViewModel(
                 merchant = merchant?.trim().takeUnless { it.isNullOrBlank() },
                 address = address?.trim().takeUnless { it.isNullOrBlank() },
                 paymentMethod = paymentMethod.name,
-                categoryId = null,
+                categoryId = categoryId,
                 dateEpochDay = todayEpochDay(),
                 receiptUri = receiptUri
             )

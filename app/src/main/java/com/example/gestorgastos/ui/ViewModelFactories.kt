@@ -1,5 +1,6 @@
 package com.example.gestorgastos.ui
-
+import com.example.gestorgastos.data.repository.CategoryRepository
+import com.example.gestorgastos.ui.categories.CategoriesViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.gestorgastos.data.repository.ExpenseRepository
@@ -25,6 +26,18 @@ class AddExpenseVMFactory(
         if (modelClass.isAssignableFrom(AddExpenseViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return AddExpenseViewModel(expenseRepo) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+class CategoriesVMFactory(
+    private val categoryRepo: CategoryRepository
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(CategoriesViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return CategoriesViewModel(categoryRepo) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

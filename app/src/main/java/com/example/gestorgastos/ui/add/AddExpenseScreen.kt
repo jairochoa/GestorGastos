@@ -14,10 +14,13 @@ import com.example.gestorgastos.data.local.model.CurrencyCode
 import com.example.gestorgastos.data.local.model.PaymentMethod
 import androidx.compose.ui.platform.LocalContext
 import com.example.gestorgastos.media.createReceiptImageUri
+import com.example.gestorgastos.data.local.entity.CategoryEntity
 
 @Composable
 fun AddExpenseScreen(
     onBack: () -> Unit,
+    categories: List<CategoryEntity>,
+    onManageCategories: () -> Unit,
     onSave: (
         amount: String,
         currency: CurrencyCode,
@@ -26,9 +29,16 @@ fun AddExpenseScreen(
         address: String?,
         description: String?,
         method: PaymentMethod,
-        receiptUri: String?
+        receiptUri: String?,
+        categoryId: Long?
     ) -> Unit
 ) {
+    var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
+
+    val selectedCategoryName = categories.firstOrNull { it.id == selectedCategoryId }?.name ?: "Sin categoría"
+    var catExpanded by remember { mutableStateOf(false) }
+
+
     var amount by remember { mutableStateOf("") }
     var concept by remember { mutableStateOf("") }
     var merchant by remember { mutableStateOf("") }
@@ -107,6 +117,31 @@ fun AddExpenseScreen(
                 if (receipt != null) Text("✔ Recibo")
             }
 
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column {
+                    Text("Categoría", style = MaterialTheme.typography.labelMedium)
+                    OutlinedButton(onClick = { catExpanded = true }) { Text(selectedCategoryName) }
+
+                    DropdownMenu(expanded = catExpanded, onDismissRequest = { catExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Sin categoría") },
+                            onClick = { selectedCategoryId = null; catExpanded = false }
+                        )
+                        categories.forEach { c ->
+                            DropdownMenuItem(
+                                text = { Text(c.name) },
+                                onClick = { selectedCategoryId = c.id; catExpanded = false }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedButton(onClick = onManageCategories) {
+                    Text("Gestionar")
+                }
+            }
+
+
             Button(
                 onClick = {
                     onSave(
@@ -115,7 +150,8 @@ fun AddExpenseScreen(
                         address.ifBlank { null },
                         description.ifBlank { null },
                         method,
-                        receipt?.toString()
+                        receipt?.toString(),
+                        selectedCategoryId
                     )
                 },
                 modifier = Modifier.fillMaxWidth()

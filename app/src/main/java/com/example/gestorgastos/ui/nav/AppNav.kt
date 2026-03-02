@@ -24,6 +24,10 @@ import com.example.gestorgastos.ui.formatEpochDay
 import com.example.gestorgastos.data.local.model.CurrencyCode
 import com.example.gestorgastos.ui.amountMinorToDecimalString
 import com.example.gestorgastos.ui.lock.ManagePinScreen
+import com.example.gestorgastos.ui.CategoriesVMFactory
+import com.example.gestorgastos.ui.categories.CategoriesScreen
+import com.example.gestorgastos.ui.categories.CategoriesViewModel
+
 
 private object Routes {
     const val LOCK = "lock"
@@ -31,6 +35,7 @@ private object Routes {
     const val LIST = "list"
     const val ADD = "add"
     const val MANAGE_PIN = "manage_pin"
+    const val CATEGORIES = "categories"
 }
 
 
@@ -89,6 +94,21 @@ fun AppNav() {
             )
         }
 
+        composable(Routes.CATEGORIES) {
+            val vm: CategoriesViewModel =
+                viewModel(factory = CategoriesVMFactory(container.categoryRepository))
+
+            val categories by vm.categories.collectAsStateWithLifecycle()
+
+            CategoriesScreen(
+                categories = categories,
+                onBack = { navController.popBackStack() },
+                onAdd = vm::add,
+                onRename = vm::rename,
+                onDelete = vm::delete
+            )
+        }
+
         composable(Routes.LIST) {
             val vm: ExpensesListViewModel = viewModel(factory = ExpensesListVMFactory(container.expenseRepository))
             val state by vm.uiState.collectAsStateWithLifecycle()
@@ -112,6 +132,7 @@ fun AppNav() {
                 onPrevMonth = vm::prevMonth,
                 onNextMonth = vm::nextMonth,
                 onInsertDemo = vm::insertDemo,
+                onCategories = { navController.navigate(Routes.CATEGORIES) },
                 onAdd = { navController.navigate(Routes.ADD) },
                 onExportCsv = {
                     scope.launch {
@@ -130,10 +151,15 @@ fun AppNav() {
 
         composable(Routes.ADD) {
             val vm: AddExpenseViewModel = viewModel(factory = AddExpenseVMFactory(container.expenseRepository))
+            val catVm: CategoriesViewModel =
+                viewModel(factory = CategoriesVMFactory(container.categoryRepository))
+            val categories by catVm.categories.collectAsStateWithLifecycle()
             AddExpenseScreen(
                 onBack = { navController.popBackStack() },
-                onSave = { amount, currency, concept, merchant, address, desc, method, receiptUri ->
-                    val ok = vm.save(amount, currency, concept, merchant, address, desc, method, receiptUri)
+                categories = categories,
+                onManageCategories = { navController.navigate(Routes.CATEGORIES) },
+                onSave = { amount, currency, concept, merchant, address, desc, method, receiptUri, categoryId ->
+                    val ok = vm.save(amount, currency, concept, merchant, address, desc, method, receiptUri, categoryId)
                     if (ok) navController.popBackStack()
                 }
             )

@@ -21,7 +21,8 @@ fun ExpensesListScreen(
     onInsertDemo: () -> Unit,
     onAdd: () -> Unit,
     onExportCsv: () -> Unit,
-    onSetupPin: () -> Unit
+    onSetupPin: () -> Unit,
+    onCategories: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -36,6 +37,7 @@ fun ExpensesListScreen(
                     TextButton(onClick = onNextMonth) { Text("▶") }
                     TextButton(onClick = onExportCsv) { Text("CSV") }
                     TextButton(onClick = onSetupPin) { Text("PIN") }
+                    TextButton(onClick = onCategories) { Text("Categorías") }
                 }
             )
         },
